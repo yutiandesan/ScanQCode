@@ -34,11 +34,9 @@
 
 @interface QRCodeReaderView ()<AVCaptureMetadataOutputObjectsDelegate>
 {
-    AVCaptureSession * session;
+    AVCaptureSession * _session;
     
-    NSTimer * countTime;
 }
-@property (nonatomic, strong) CAShapeLayer *overlay;
 @end
 
 @implementation QRCodeReaderView
@@ -79,14 +77,14 @@
     output.rectOfInterest = scanCrop;
     
     //初始化链接对象
-    session = [[AVCaptureSession alloc]init];
+    _session = [[AVCaptureSession alloc]init];
     //高质量采集率
-    [session setSessionPreset:AVCaptureSessionPresetHigh];
+    [_session setSessionPreset:AVCaptureSessionPresetHigh];
     if (input) {
-        [session addInput:input];
+        [_session addInput:input];
     }
     if (output) {
-        [session addOutput:output];
+        [_session addOutput:output];
         //设置扫码支持的编码格式(如下设置条形码和二维码兼容)
         NSMutableArray *a = [[NSMutableArray alloc] init];
         if ([output.availableMetadataObjectTypes containsObject:AVMetadataObjectTypeQRCode]) {
@@ -104,7 +102,7 @@
         output.metadataObjectTypes=a;
     }
     
-    AVCaptureVideoPreviewLayer * layer = [AVCaptureVideoPreviewLayer layerWithSession:session];
+    AVCaptureVideoPreviewLayer * layer = [AVCaptureVideoPreviewLayer layerWithSession:_session];
     layer.videoGravity=AVLayerVideoGravityResizeAspectFill;
     layer.frame=self.layer.bounds;
     [self.layer insertSublayer:layer atIndex:0];
@@ -112,7 +110,7 @@
     [self setOverlayPickerView:self];
     
     //开始捕获
-    [session startRunning];
+    [_session startRunning];
     
     
 }
@@ -148,12 +146,21 @@
     CGFloat wid = 60*widthRate;
     CGFloat heih = (DeviceMaxHeight-200*widthRate)/2;
     
-    //最上部view
-    CGFloat alpha = 0.6;
-    UIView* upView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, DeviceMaxWidth, heih)];
-    upView.alpha = alpha;
-    upView.backgroundColor = [self colorFromHexRGB:contentTitleColorStr];
-    [reader addSubview:upView];
+    UIView *overlayView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, DeviceMaxWidth, DeviceMaxHeight)];
+    [reader addSubview:overlayView];
+    
+    CAShapeLayer *layer = [[CAShapeLayer alloc] init];
+    layer.fillRule = kCAFillRuleEvenOdd;
+    
+    CGMutablePathRef path = CGPathCreateMutable();
+    
+    CGRect rect = CGRectMake(wid, heih, 200*widthRate, 200*widthRate);
+    CGPathAddRect(path, nil, overlayView.bounds);
+    CGPathAddRect(path, nil, rect);
+    
+    [layer setFillColor:[[UIColor colorWithRed:0 green:0 blue:0 alpha:0.6] CGColor]];
+    [layer setPath:path];
+    [overlayView.layer addSublayer:layer];
     
     //用于说明的label
     UILabel * labIntroudction= [[UILabel alloc] init];
@@ -162,34 +169,16 @@
     labIntroudction.textAlignment = NSTextAlignmentCenter;
     labIntroudction.textColor=[UIColor whiteColor];
     labIntroudction.text=@"请扫描XXXX支付二维码";
-    [upView addSubview:labIntroudction];
-    
-    //左侧的view
-    UIView * cLeftView = [[UIView alloc] initWithFrame:CGRectMake(0, heih, wid, 200*widthRate)];
-    cLeftView.alpha = alpha;
-    cLeftView.backgroundColor = [self colorFromHexRGB:contentTitleColorStr];
-    [reader addSubview:cLeftView];
-    
-    //右侧的view
-    UIView *rightView = [[UIView alloc] initWithFrame:CGRectMake(DeviceMaxWidth-wid, heih, wid, 200*widthRate)];
-    rightView.alpha = alpha;
-    rightView.backgroundColor = [self colorFromHexRGB:contentTitleColorStr];
-    [reader addSubview:rightView];
-    
-    //底部view
-    UIView * downView = [[UIView alloc] initWithFrame:CGRectMake(0, heih+200*widthRate, DeviceMaxWidth, DeviceMaxHeight - heih-200*widthRate)];
-    downView.alpha = alpha;
-    downView.backgroundColor = [self colorFromHexRGB:contentTitleColorStr];
-    [reader addSubview:downView];
+    [overlayView addSubview:labIntroudction];
     
     //开关灯button
     UIButton * turnBtn = [UIButton buttonWithType:UIButtonTypeCustom];
     turnBtn.backgroundColor = [UIColor clearColor];
     [turnBtn setBackgroundImage:[UIImage imageNamed:@"lightSelect"] forState:UIControlStateNormal];
     [turnBtn setBackgroundImage:[UIImage imageNamed:@"lightNormal"] forState:UIControlStateSelected];
-    turnBtn.frame=CGRectMake((DeviceMaxWidth-50*widthRate)/2, (CGRectGetHeight(downView.frame)-50*widthRate)/2, 50*widthRate, 50*widthRate);
+    turnBtn.frame=CGRectMake((DeviceMaxWidth-50*widthRate)/2, heih+200*widthRate+(CGRectGetHeight(overlayView.frame)-heih-200*widthRate-50*widthRate)/2, 50*widthRate, 50*widthRate);
     [turnBtn addTarget:self action:@selector(turnBtnEvent:) forControlEvents:UIControlEventTouchUpInside];
-    [downView addSubview:turnBtn];
+    [overlayView addSubview:turnBtn];
     
 }
 
@@ -250,12 +239,12 @@
 
 - (void)start
 {
-    [session startRunning];
+    [_session startRunning];
 }
 
 - (void)stop
 {
-    [session stopRunning];
+    [_session stopRunning];
 }
 
 #pragma mark - 扫描结果
